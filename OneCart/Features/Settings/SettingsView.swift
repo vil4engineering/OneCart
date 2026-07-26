@@ -245,9 +245,12 @@ struct FamilyManagementSheet: View {
                         .padding(.bottom, 18)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(2)
+                        .animation(
+                            .spring(response: 0.35, dampingFraction: 0.86),
+                            value: sheetToast.id
+                        )
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: sheetToast)
             .navigationTitle("Группа")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

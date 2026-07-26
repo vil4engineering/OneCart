@@ -603,9 +603,10 @@ final class AppSession: ObservableObject {
             showToast("Семейная корзина подключена")
         } catch {
             AppDelegate.requeue(metadata)
-            syncState = .failed
-            lastSyncError = userFacingMessage(for: error)
-            show(error)
+            applySyncFailure(
+                state: .failed,
+                message: userFacingMessage(for: error)
+            )
         }
     }
 
