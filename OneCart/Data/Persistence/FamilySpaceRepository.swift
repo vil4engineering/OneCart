@@ -105,18 +105,21 @@ final class FamilySpaceRepository {
 
     func fetchFamilySpaces(for userID: UUID? = nil) throws -> [FamilySpace] {
         let request = FamilySpace.fetchRequest()
-        var predicates = [NSPredicate(format: "deletedAt == nil")]
-        if let userID {
-            predicates.append(
-                NSPredicate(format: "cachedForUserID == %@", userID as NSUUID)
-            )
-        }
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [
             NSSortDescriptor(key: "updatedAt", ascending: false),
             NSSortDescriptor(key: "createdAt", ascending: false),
         ]
-        return try persistence.container.viewContext.fetch(request)
+        let spaces = try persistence.container.viewContext.fetch(request)
+        guard let userID else { return spaces }
+        // Private carts are scoped to the SIWA-derived account. Shared-store carts
+        // belong to the device iCloud share participant and stay visible.
+        return spaces.filter { space in
+            if persistence.scope(for: space) == .shared {
+                return true
+            }
+            return space.cachedForUserID == userID
+        }
     }
 
     func fetchFamilySpace(id: UUID) throws -> FamilySpace? {

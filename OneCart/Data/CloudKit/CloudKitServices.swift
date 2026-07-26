@@ -154,13 +154,13 @@ enum OneCartCloudKitError: LocalizedError {
         case let .accountUnavailable(status):
             switch status {
             case .noAccount:
-                "Войдите в Apple Account в Настройках iPhone, чтобы синхронизировать OneCart."
+                "Для синхронизации нужен iCloud на этом iPhone (Настройки → Apple Account → iCloud). Входа через Apple недостаточно."
             case .restricted:
-                "Синхронизация ограничена на этом устройстве."
+                "iCloud ограничен на этом устройстве — синхронизация и шаринг корзины недоступны."
             case .temporarilyUnavailable:
-                "Синхронизация временно недоступна. Попробуйте ещё раз позже."
+                "iCloud временно недоступен. Проверьте сеть и повторите — вход через Apple уже сохранён."
             default:
-                "Не удалось определить состояние аккаунта устройства."
+                "Не удалось проверить iCloud на устройстве. Синхронизация требует доступный iCloud-аккаунт."
             }
         case .familyNotShared:
             "Группа ещё не опубликована."

@@ -848,19 +848,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connecting to iCloud…"
+            "value" : "Checking iCloud and opening your cart…"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Подключаем iCloud…"
+            "value" : "Проверяем iCloud и открываем корзину…"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Підключаємо iCloud…"
+            "value" : "Перевіряємо iCloud і відкриваємо кошик…"
           }
         }
       }
@@ -870,19 +870,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sign in with Apple. The list is shared privately through iCloud."
+            "value" : "Apple Sign In is your session. Shopping lists sync through the device iCloud account."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вход через Apple. Список делится через iCloud — только с теми, кого вы пригласите."
+            "value" : "Вход через Apple — это сессия. Списки синхронизируются через iCloud-аккаунт устройства."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вхід через Apple. Список ділиться через iCloud — лише з тими, кого ви запросите."
+            "value" : "Вхід через Apple — це сесія. Списки синхронізуються через iCloud-акаунт пристрою."
           }
         }
       }
@@ -959,19 +959,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sign in to open your shopping cart. Invite family later — everyone shares the same list through iCloud."
+            "value" : "Sign in with Apple to open your cart. Sync and family sharing need iCloud on this iPhone."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Войдите, чтобы открыть корзину. Потом можно пригласить семью — у всех будет один список через iCloud."
+            "value" : "Войдите через Apple, чтобы открыть корзину. Синхронизация и шаринг семье требуют iCloud на этом iPhone."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Увійдіть, щоб відкрити кошик. Потім можна запросити сімʼю — у всіх буде один список через iCloud."
+            "value" : "Увійдіть через Apple, щоб відкрити кошик. Синхронізація і шаринг для сімʼї потребують iCloud на цьому iPhone."
           }
         }
       }

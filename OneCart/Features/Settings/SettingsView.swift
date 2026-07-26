@@ -135,7 +135,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsActionRow(
                         image: "person.2.fill",
-                        title: "Участники",
+                        title: model.access?.isOwner == true ? "Пригласить семью" : "Участники",
                         detail: familyMembersDetail,
                         showsChevron: true
                     )
@@ -172,7 +172,9 @@ struct SettingsView: View {
     private var familyMembersDetail: String {
         let count = max(model.familyMembers.count, model.activeFamilySpace == nil ? 0 : 1)
         if count <= 1 {
-            return "Только вы"
+            return model.access?.isOwner == true
+                ? "Поделитесь корзиной через Share"
+                : "Только вы"
         }
         return memberCountText(count)
     }

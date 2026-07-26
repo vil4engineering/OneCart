@@ -24,12 +24,26 @@ Before TestFlight / App Store:
 Physical devices, different iCloud accounts (simulator is UI/local Core Data only):
 
 1. Signed Debug build on A and B.
-2. On A: create household + items (including offline).
-3. Go online → “Synced with iCloud”.
-4. Invite → open iCloud share URL on B.
-5. Family appears on B; edits sync both ways.
+2. On A: SIWA → empty household cart; add items (including offline).
+3. Go online → sync banner clears / “Synced with iCloud”.
+4. Settings → Пригласить семью → Invite → open iCloud share URL on B.
+5. On B: SIWA → accept share → **shared cart replaces** any empty private starter; edits sync both ways.
 6. Remove member on A → B loses access.
 7. Relaunch offline: local data opens; queued changes upload when back online.
+
+### Code-level verification (no devices)
+
+Covered by unit tests / static path review when Xcode devices are unavailable:
+
+| Checklist step | Code / test coverage |
+|----------------|----------------------|
+| Household + default list | `testCreatingFamilySpaceAlsoCreatesGeneralList` |
+| Add product → same store as FamilySpace (CK graph) | `testAddProductLandsInSameStoreAsFamilyForCloudKitSync` |
+| Add product visible after viewContext merge | `testAddProductVisibleAfterViewContextMerge` |
+| Offline local persist | `testOfflineRepositorySaveSurvivesContextReset` |
+| Private carts scoped per SIWA account | `testFamilyCacheIsScopedToAuthenticatedUser`, `testSharedCartVisibleAlongsideOwnPrivateCart` |
+| Shared replaces private (merge/archive) | `testMergeFamilyContentCopiesProducts`, `FamilyCartMerge` + `adoptSharedFamilyCartIfNeeded` |
+| Invite waits for CloudKit mirror / timeout | `CloudKitServices` `waitUntilMirrored` / `shareTimedOut` |
 
 ## 4. TestFlight
 

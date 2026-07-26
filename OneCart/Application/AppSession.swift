@@ -303,16 +303,24 @@ final class AppSession: ObservableObject {
             isReady = true
             return
         }
+        let previousPhase = welcomePhase
         needsWelcome = true
         welcomePhase = .connecting
         isReady = true
-        do {
-            try persistence.hardResetPersistentStores()
-            objectWillChange.send()
-        } catch {
-            welcomePhase = .failed(userFacingMessage(for: error))
-            return
+
+        // Soft retry by default. Wipe local SQLite only when Core Data itself failed.
+        if case let .failed(message) = previousPhase,
+           message == String(localized: "welcome.core_data_failed")
+        {
+            do {
+                try persistence.hardResetPersistentStores()
+                objectWillChange.send()
+            } catch {
+                welcomePhase = .failed(userFacingMessage(for: error))
+                return
+            }
         }
+
         await prepareApplication(appleCredential: credential)
     }
 
@@ -341,6 +349,9 @@ final class AppSession: ObservableObject {
     }
 
     func signOut() {
+        if let account {
+            defaults.removeObject(forKey: activeFamilyKey(accountID: account.id))
+        }
         appleSignIn.clearCredential()
         clearAccountData()
         account = nil
@@ -353,13 +364,17 @@ final class AppSession: ObservableObject {
     private func bootstrapSession() async {
         if let credential = appleSignIn.storedCredential() {
             let state = await appleSignIn.credentialState(for: credential.userID)
-            if state == .authorized {
+            switch state {
+            case .authorized, .unknown:
+                // `.unknown` can be transient at launch — keep the session and let
+                // iCloud / prepareApplication report a real failure if needed.
                 needsWelcome = false
                 welcomePhase = .connecting
                 await prepareApplication(appleCredential: credential)
                 return
+            case .revoked, .notFound:
+                appleSignIn.clearCredential()
             }
-            appleSignIn.clearCredential()
         }
 
         needsWelcome = true
@@ -878,7 +893,7 @@ final class AppSession: ObservableObject {
         let context = persistence.container.viewContext
         context.processPendingChanges()
         let previousID = activeFamilySpace?.id
-        familySpaces = try repository.fetchFamilySpaces()
+        familySpaces = try repository.fetchFamilySpaces(for: account.id)
 
         let storedID = preferredFamilySpaceID
             ?? defaults.string(forKey: activeFamilyKey(accountID: account.id))
@@ -1118,11 +1133,14 @@ final class AppSession: ObservableObject {
     }
 
     private func userFacingMessage(for error: Error) -> String {
-        if PersistenceController.isUserFacingCoreDataFailure(error) {
-            return String(localized: "welcome.core_data_failed")
+        if error is OneCartCloudKitError {
+            return CloudKitUserFacingError.message(for: error)
         }
         if CloudKitUserFacingError.isNetworkError(error) {
             return "Нет соединения с сервисом синхронизации. Изменения останутся на устройстве и синхронизируются позже."
+        }
+        if PersistenceController.isUserFacingCoreDataFailure(error) {
+            return String(localized: "welcome.core_data_failed")
         }
         return CloudKitUserFacingError.message(for: error)
     }

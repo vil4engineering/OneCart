@@ -27,4 +27,15 @@ OneCart используется как личное iOS-приложение и
 
 Sign in with Apple remains for local session. CloudKit iCloud identity drives sync. Apple Family is product positioning; sharing uses private CKShare (`publicPermission = .none`), not Family Sharing membership APIs.
 
+## Clarification (2026-07-26)
+
+Dual identity is intentional and must stay explicit in UX:
+
+| Concern | Source of truth |
+|---------|-----------------|
+| App session / Keychain / local profile key | Sign in with Apple `user` → stable UUID |
+| Sync, CKShare, who receives the family cart | Device iCloud account (`CKContainer`) |
+
+Welcome copy and iCloud-unavailable errors must say that SIWA alone is not enough. Private Core Data carts are filtered by the SIWA-derived account id; shared-store carts follow the iCloud participant.
+
 See [architecture.md](../architecture.md), [product.md](../product.md), [release.md](../release.md).
