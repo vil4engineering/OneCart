@@ -334,6 +334,7 @@ final class AppSession: ObservableObject {
         appleSignIn.clearCredential()
         clearAccountData()
         account = nil
+        alertMessage = nil
         needsWelcome = true
         welcomePhase = .signIn
         isReady = true
