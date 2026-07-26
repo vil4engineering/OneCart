@@ -120,31 +120,7 @@ struct SettingsView: View {
             SettingsSectionLabel(title: "Семейная корзина")
 
             VStack(spacing: 0) {
-                if model.familySpaces.count > 1 {
-                    Menu {
-                        ForEach(model.familySpaces, id: \.objectID) { space in
-                            Button {
-                                model.setActiveFamilySpace(space)
-                            } label: {
-                                if space.id == model.activeFamilySpace?.id {
-                                    Label(space.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(space.displayName)
-                                }
-                            }
-                        }
-                    } label: {
-                        SettingsActionRow(
-                            image: "person.3.fill",
-                            title: model.activeFamilySpace?.displayName ?? "Группа",
-                            detail: "Сменить пространство",
-                            showsChevron: true,
-                            chevron: "chevron.up.chevron.down"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    settingsDivider
-                } else if let active = model.activeFamilySpace {
+                if let active = model.activeFamilySpace {
                     SettingsActionRow(
                         image: "person.3.fill",
                         title: active.displayName,
@@ -225,10 +201,6 @@ struct FamilyManagementSheet: View {
             ZStack(alignment: .bottom) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
-                        if model.familySpaces.count > 1 {
-                            familySwitcher
-                        }
-
                         familyHeader
 
                         if model.access?.isOwner == true {
@@ -314,42 +286,6 @@ struct FamilyManagementSheet: View {
             }
         }
         .navigationViewStyle(.stack)
-    }
-
-    private var familySwitcher: some View {
-        Menu {
-            ForEach(model.familySpaces, id: \.objectID) { space in
-                Button {
-                    model.setActiveFamilySpace(space)
-                } label: {
-                    if space.id == model.activeFamilySpace?.id {
-                        Label(space.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(space.displayName)
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "person.3.fill")
-                    .foregroundColor(OneCartPalette.primary)
-                    .frame(width: 38, height: 38)
-                    .background(OneCartPalette.primarySoft, in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Текущая группа")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(model.activeFamilySpace?.displayName ?? "Группа")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
-                }
-                Spacer()
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .oneCartCard()
-        }
     }
 
     private var familyHeader: some View {

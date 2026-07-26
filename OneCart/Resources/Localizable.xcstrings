@@ -103,6 +103,28 @@
         }
       }
     },
+    "cart.empty_title" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cart is empty"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Корзина пуста"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кошик порожній"
+          }
+        }
+      }
+    },
     "home.connecting_cart" : {
       "localizations" : {
         "en" : {
@@ -130,19 +152,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add items to a store list — everyone in the share can see them."
+            "value" : "Your cart is empty. Add the first item."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Добавьте товары в список магазина — их увидят все, с кем вы поделились."
+            "value" : "Корзина пуста. Добавьте первый товар."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Додайте товари до списку магазину — їх побачать усі, з ким ви поділилися."
+            "value" : "Кошик порожній. Додайте перший товар."
           }
         }
       }
@@ -937,19 +959,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "One shopping list for everyone at home."
+            "value" : "Sign in to open your shopping cart. Invite family later — everyone shares the same list through iCloud."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Один список покупок на всю семью."
+            "value" : "Войдите, чтобы открыть корзину. Потом можно пригласить семью — у всех будет один список через iCloud."
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Один список покупок на всю сім'ю."
+            "value" : "Увійдіть, щоб відкрити кошик. Потім можна запросити сімʼю — у всіх буде один список через iCloud."
           }
         }
       }
@@ -959,19 +981,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Shop together"
+            "value" : "OneCart"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Покупки вместе"
+            "value" : "OneCart"
           }
         },
         "uk" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Покупки разом"
+            "value" : "OneCart"
           }
         }
       }

@@ -134,17 +134,8 @@ enum InviteLinkError: LocalizedError {
 
 enum WelcomePhase: Equatable {
     case signIn
-    case audience
     case connecting
     case failed(String)
-}
-
-enum HouseholdAudience: String, CaseIterable, Identifiable {
-    case justMe
-    case partner
-    case appleFamily
-
-    var id: String { rawValue }
 }
 
 @MainActor
@@ -160,7 +151,6 @@ final class AppSession: ObservableObject {
     @Published private(set) var isBusy = false
     @Published private(set) var needsWelcome = false
     @Published private(set) var welcomePhase: WelcomePhase = .signIn
-    @Published var pendingCartMerge: CartMergePrompt?
     @Published private(set) var account: OneCartAccount?
     @Published private(set) var syncState: OneCartSyncState = .synchronized
     @Published private(set) var lastSyncError: String?
@@ -237,8 +227,6 @@ final class AppSession: ObservableObject {
         }
     }
 
-    private static let audienceCompletedKey = "onecart.audienceCompleted"
-
     private static func makeDefaultPersistence() -> PersistenceController {
         if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
             return PersistenceController(inMemory: true, cloudKitEnabled: false)
@@ -275,7 +263,7 @@ final class AppSession: ObservableObject {
         do {
             try reload()
             if let account {
-                _ = try await resolveFamilyCartConflicts(for: account)
+                try await adoptSharedFamilyCartIfNeeded(for: account)
             }
             if activeFamilySpace != nil {
                 showToast("Семейная корзина подключена")
@@ -300,41 +288,9 @@ final class AppSession: ObservableObject {
                 )
                 try reload()
             } else {
-                _ = try await resolveFamilyCartConflicts(for: account)
-                if pendingCartMerge == nil {
-                    try reload(preferredFamilySpaceID: preferredSharedFamilyID())
-                }
+                try await adoptSharedFamilyCartIfNeeded(for: account)
             }
             await refreshFamilyMetadata(showErrors: false)
-        } catch {
-            show(error)
-        }
-    }
-
-    func applyCartMergeChoice(_ choice: CartMergeChoice) async {
-        guard let prompt = pendingCartMerge, let account else { return }
-        isBusy = true
-        defer { isBusy = false }
-        do {
-            switch choice {
-            case .useSharedOnly:
-                try await repository.archiveFamilySpace(id: prompt.privateFamilyID)
-            case .mergeIntoShared:
-                try await repository.mergeFamilyContent(
-                    from: prompt.privateFamilyID,
-                    into: prompt.sharedFamilyID
-                )
-            case .keepPrivate:
-                pendingCartMerge = nil
-                return
-            }
-            pendingCartMerge = nil
-            defaults.set(
-                prompt.sharedFamilyID.uuidString,
-                forKey: activeFamilyKey(accountID: account.id)
-            )
-            try reload(preferredFamilySpaceID: prompt.sharedFamilyID)
-            showToast("Семейная корзина подключена")
         } catch {
             show(error)
         }
@@ -388,7 +344,6 @@ final class AppSession: ObservableObject {
         appleSignIn.clearCredential()
         clearAccountData()
         account = nil
-        pendingCartMerge = nil
         needsWelcome = true
         welcomePhase = .signIn
         isReady = true
@@ -621,10 +576,7 @@ final class AppSession: ObservableObject {
             syncState = .synchronized
             try reload()
             if let account {
-                _ = try await resolveFamilyCartConflicts(for: account)
-            }
-            if familySpaces.contains(where: { persistence.scope(for: $0) == .shared }) {
-                needsWelcome = false
+                try await adoptSharedFamilyCartIfNeeded(for: account)
             }
             scheduleCloudReload(delayNanoseconds: 350_000_000)
             showToast("Семейная корзина подключена")
@@ -810,16 +762,10 @@ final class AppSession: ObservableObject {
             try await repository.claimUnassignedFamilySpaces(for: restoredAccount.id)
             try reload()
             await acceptPendingCloudKitShares()
-            let finished = try await finishFamilyCartSetup(for: restoredAccount)
-            guard finished else { return }
+            try await finishFamilyCartSetup(for: restoredAccount)
             syncState = online ? .synchronized : .offline
             await refreshFamilyMetadata(showErrors: false)
-            if defaults.bool(forKey: Self.audienceCompletedKey) {
-                needsWelcome = false
-            } else {
-                needsWelcome = true
-                welcomePhase = .audience
-            }
+            needsWelcome = false
             isReady = true
         } catch {
             needsWelcome = true
@@ -828,9 +774,8 @@ final class AppSession: ObservableObject {
         }
     }
 
-    /// Syncs CloudKit shares, ensures one Household cart, and resolves private/shared conflicts.
-    @discardableResult
-    private func finishFamilyCartSetup(for account: OneCartAccount) async throws -> Bool {
+    /// Ensures one household cart. Shared invite replaces the local private cart.
+    private func finishFamilyCartSetup(for account: OneCartAccount) async throws {
         try reload()
         if familySpaces.isEmpty {
             _ = try await repository.createFamilySpace(
@@ -840,65 +785,21 @@ final class AppSession: ObservableObject {
             )
             try reload()
         }
-        guard familySpaces.contains(where: { persistence.scope(for: $0) == .shared }) else {
-            return true
-        }
-
-        _ = try await resolveFamilyCartConflicts(for: account)
-        if pendingCartMerge == nil {
-            try reload(preferredFamilySpaceID: preferredSharedFamilyID())
-        }
-        return true
-    }
-
-    func completeHouseholdAudience(_ audience: HouseholdAudience) async {
-        welcomePhase = .connecting
-        guard let account else {
-            welcomePhase = .failed("Сначала войдите через Apple.")
-            return
-        }
-        do {
-            if familySpaces.isEmpty {
-                _ = try await repository.createFamilySpace(
-                    name: Self.defaultFamilyName,
-                    cachedForUserID: account.id,
-                    isHouseholdDefault: true
-                )
-                try reload()
-            }
-            switch audience {
-            case .justMe:
-                defaults.set(true, forKey: Self.audienceCompletedKey)
-                needsWelcome = false
-                isReady = true
-            case .partner, .appleFamily:
-                defaults.set(true, forKey: Self.audienceCompletedKey)
-                familyManagementPresented = true
-                needsWelcome = false
-                isReady = true
-                showToast(
-                    audience == .partner
-                        ? "Пригласите партнёра через Share"
-                        : "Пригласите семью через Share",
-                    style: .info
-                )
-            }
-        } catch {
-            welcomePhase = .failed(userFacingMessage(for: error))
-        }
+        try await adoptSharedFamilyCartIfNeeded(for: account)
     }
 
     private func preferredSharedFamilyID() -> UUID? {
         familySpaces.first { persistence.scope(for: $0) == .shared }?.id
     }
 
-    @discardableResult
-    private func resolveFamilyCartConflicts(for account: OneCartAccount) async throws -> Bool {
+    /// When a shared family cart exists, it becomes active. Empty private starters are
+    /// archived; private carts with content are merged into the shared cart, then archived.
+    private func adoptSharedFamilyCartIfNeeded(for account: OneCartAccount) async throws {
         try reload()
         guard let sharedFamily = familySpaces.first(where: {
             persistence.scope(for: $0) == .shared
         }), let sharedID = sharedFamily.id else {
-            return true
+            return
         }
 
         let privateFamilies = familySpaces.filter {
@@ -913,23 +814,14 @@ final class AppSession: ObservableObject {
                 try await repository.archiveFamilySpace(id: privateID)
                 continue
             }
-
-            let summary = FamilyCartMerge.summary(for: privateFamily)
-            pendingCartMerge = CartMergePrompt(
-                privateFamilyID: privateID,
-                sharedFamilyID: sharedID,
-                privateFamilyName: privateFamily.displayName,
-                sharedFamilyName: sharedFamily.displayName,
-                summary: summary
-            )
-            return false
+            try await repository.mergeFamilyContent(from: privateID, into: sharedID)
         }
 
         defaults.set(
             sharedID.uuidString,
             forKey: activeFamilyKey(accountID: account.id)
         )
-        return true
+        try reload(preferredFamilySpaceID: sharedID)
     }
 
     private func clearAccountData() {
@@ -1180,9 +1072,9 @@ final class AppSession: ObservableObject {
         scheduledReloadTask?.cancel()
         scheduledReloadTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: delayNanoseconds)
-            guard !Task.isCancelled, let self else { return }
+            guard !Task.isCancelled, let self, let account = self.account else { return }
             do {
-                try reload()
+                try await adoptSharedFamilyCartIfNeeded(for: account)
                 if familyManagementPresented {
                     await refreshFamilyMetadata(showErrors: false)
                 }

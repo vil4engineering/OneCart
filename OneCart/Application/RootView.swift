@@ -68,9 +68,6 @@ struct RootView: View {
         .sheet(isPresented: $model.familyManagementPresented) {
             FamilyManagementSheet(model: model)
         }
-        .sheet(item: $model.pendingCartMerge) { prompt in
-            CartMergeSheet(prompt: prompt)
-        }
     }
 
     @ViewBuilder
