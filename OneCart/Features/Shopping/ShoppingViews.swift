@@ -8,8 +8,18 @@ struct HomeView: View {
         _viewModel = StateObject(wrappedValue: ShoppingViewModel(session: model))
     }
 
+    /// Stable household cart list: prefer the general (no-store) list, else oldest active.
     private var primaryListID: UUID? {
-        model.activeLists.first?.id
+        let lists = model.activeLists
+        if let general = lists.first(where: { $0.store == nil }) {
+            return general.id
+        }
+        return lists
+            .sorted { lhs, rhs in
+                (lhs.createdAt ?? .distantFuture) < (rhs.createdAt ?? .distantFuture)
+            }
+            .first?
+            .id
     }
 
     var body: some View {
@@ -465,7 +475,7 @@ struct ShoppingListView: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Menu {
+                        HStack(spacing: 8) {
                             Button {
                                 if catalogBrand == nil {
                                     showingAddProduct = true
@@ -473,31 +483,47 @@ struct ShoppingListView: View {
                                     showingOfficialCatalog = true
                                 }
                             } label: {
-                                Label(catalogBrand == nil ? "Добавить товар" : "Каталог товаров", systemImage: "plus")
+                                Image(systemName: "plus")
+                                    .font(.body.weight(.semibold))
+                                    .frame(minWidth: 44, minHeight: 44)
                             }
+                            .disabled(!model.canEdit)
+                            .accessibilityLabel(
+                                catalogBrand == nil ? "Добавить товар" : "Каталог товаров"
+                            )
 
-                            if catalogBrand != nil {
+                            Menu {
                                 Button {
                                     showingAddProduct = true
                                 } label: {
                                     Label("Добавить вручную", systemImage: "square.and.pencil")
                                 }
-                            }
-
-                            if model.activeLists.count > 1 {
-                                Divider()
-
-                                Button(role: .destructive) {
-                                    confirmingDeleteList = true
-                                } label: {
-                                    Label("Удалить список", systemImage: "trash")
-                                }
                                 .disabled(!model.canEdit)
+
+                                if catalogBrand != nil {
+                                    Button {
+                                        showingOfficialCatalog = true
+                                    } label: {
+                                        Label("Каталог товаров", systemImage: "storefront")
+                                    }
+                                    .disabled(!model.canEdit)
+                                }
+
+                                if model.activeLists.count > 1 {
+                                    Divider()
+
+                                    Button(role: .destructive) {
+                                        confirmingDeleteList = true
+                                    } label: {
+                                        Label("Удалить список", systemImage: "trash")
+                                    }
+                                    .disabled(!model.canEdit)
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.body.weight(.semibold))
+                                    .frame(minWidth: 44, minHeight: 44)
                             }
-                        } label: {
-                            Image(systemName: "ellipsis.circle")
-                                .font(.body.weight(.semibold))
-                                .frame(minWidth: 44, minHeight: 44)
                         }
                     }
                 }
@@ -960,6 +986,7 @@ struct ProductEditorSheet: View {
     }
 
     private func save() {
+        guard model.canEdit else { return }
         guard let list = model.lists.first(where: { $0.id == listID }) else {
             dismiss()
             return
@@ -980,11 +1007,21 @@ struct ProductEditorSheet: View {
         )
         Task {
             if let product {
+                let productID = product.id
                 await model.updateProduct(product, draft: draft)
+                if let productID,
+                   model.products(inListID: listID).contains(where: { $0.id == productID })
+                {
+                    dismiss()
+                }
             } else {
+                let before = Set(model.products(inListID: listID).compactMap(\.id))
                 await model.addProduct(to: list, draft: draft)
+                let after = Set(model.products(inListID: listID).compactMap(\.id))
+                if !after.subtracting(before).isEmpty {
+                    dismiss()
+                }
             }
-            dismiss()
         }
     }
 }

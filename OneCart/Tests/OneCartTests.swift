@@ -250,6 +250,76 @@ final class OneCartTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(repository.fetchFamilySpace(id: familyID)).sortedProducts.isEmpty)
     }
 
+    func testAddProductLandsInSameStoreAsFamilyForCloudKitSync() async throws {
+        let (persistence, repository) = try await makeInMemoryRepository()
+        let familyID = try await repository.createFamilySpace(
+            name: AppModel.defaultFamilyName,
+            isHouseholdDefault: true
+        )
+        let family = try XCTUnwrap(repository.fetchFamilySpace(id: familyID))
+        let list = try XCTUnwrap(family.activeLists.first)
+        let listID = try XCTUnwrap(list.id)
+
+        let productID = try await repository.addProduct(
+            to: listID,
+            draft: ProductDraft(
+                name: "Молоко",
+                quantity: 2,
+                unit: .piece,
+                category: .dairy,
+                estimatedPrice: 42,
+                note: "2.5%"
+            )
+        )
+
+        let request = ProductEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", productID as NSUUID)
+        let product = try XCTUnwrap(persistence.container.viewContext.fetch(request).first)
+
+        XCTAssertEqual(product.displayName, "Молоко")
+        XCTAssertEqual(product.list?.id, listID)
+        XCTAssertEqual(product.familySpace?.id, familyID)
+        XCTAssertEqual(product.isPurchasedValue, false)
+        XCTAssertEqual(
+            product.objectID.persistentStore?.url,
+            family.objectID.persistentStore?.url,
+            "Product must share the FamilySpace store or CloudKit will not sync the share graph"
+        )
+        XCTAssertEqual(persistence.scope(for: product), .private)
+
+        let reloaded = try XCTUnwrap(repository.fetchFamilySpace(id: familyID))
+        XCTAssertEqual(reloaded.sortedProducts.count, 1)
+        XCTAssertEqual(reloaded.sortedProducts.first?.id, productID)
+    }
+
+    func testAddProductVisibleAfterViewContextMerge() async throws {
+        let (persistence, repository) = try await makeInMemoryRepository()
+        let familyID = try await repository.createFamilySpace(name: "Sync")
+        let family = try XCTUnwrap(repository.fetchFamilySpace(id: familyID))
+        let listID = try XCTUnwrap(family.activeLists.first?.id)
+
+        _ = try await repository.addProduct(
+            to: listID,
+            draft: ProductDraft(
+                name: "Яйца",
+                quantity: 10,
+                unit: .piece,
+                category: .dairy,
+                estimatedPrice: 65,
+                note: ""
+            )
+        )
+
+        await persistence.container.viewContext.perform {
+            persistence.container.viewContext.processPendingChanges()
+        }
+
+        let products = try persistence.container.viewContext.fetch(ProductEntity.fetchRequest())
+            .filter { $0.familySpace?.id == familyID && $0.deletedAt == nil }
+        XCTAssertEqual(products.count, 1)
+        XCTAssertEqual(products.first?.displayName, "Яйца")
+    }
+
     func testOfflineRepositorySaveSurvivesContextReset() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

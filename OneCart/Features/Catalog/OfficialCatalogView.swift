@@ -1971,11 +1971,15 @@ struct OfficialCatalogSheet: View {
     }
 
     private func add(_ product: OfficialCatalogProduct) {
+        guard model.canEdit else { return }
         guard let list = model.lists.first(where: { $0.id == listID }) else { return }
         addingProductIDs.insert(product.id)
         Task {
+            let before = Set(model.products(inListID: listID).compactMap(\.id))
             await model.addProduct(to: list, draft: product.draft)
             addingProductIDs.remove(product.id)
+            let after = Set(model.products(inListID: listID).compactMap(\.id))
+            guard !after.subtracting(before).isEmpty else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 addedProductIDs = addedProductIDs.union([product.id])
             }

@@ -506,6 +506,9 @@ final class AppSession: ObservableObject {
                 participantDisplayName: preferences.participantDisplayName.nilIfBlank
                     ?? account?.displayName
             )
+            await persistence.container.viewContext.perform {
+                self.persistence.container.viewContext.processPendingChanges()
+            }
             try refreshProductsAndSummaries()
         } catch {
             show(error)
@@ -852,6 +855,11 @@ final class AppSession: ObservableObject {
 
         do {
             try await operation()
+            // Yield to the viewContext queue so automaticallyMergesChangesFromParent
+            // applies the background save before we refetch for the UI / sync banner.
+            await persistence.container.viewContext.perform {
+                self.persistence.container.viewContext.processPendingChanges()
+            }
             try reload()
             if let successMessage {
                 showToast(successMessage)
