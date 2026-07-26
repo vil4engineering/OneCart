@@ -195,6 +195,8 @@ final class AppSession: ObservableObject {
     private var remoteChangeObserver: NSObjectProtocol?
     private var cloudEventObserver: NSObjectProtocol?
     private var scheduledReloadTask: Task<Void, Never>?
+    private var syncingDebounceTask: Task<Void, Never>?
+    private var lastToastedSyncError: String?
 
     init(
         persistence: PersistenceController? = nil,
@@ -236,6 +238,7 @@ final class AppSession: ObservableObject {
 
     deinit {
         scheduledReloadTask?.cancel()
+        syncingDebounceTask?.cancel()
         if let remoteChangeObserver {
             NotificationCenter.default.removeObserver(remoteChangeObserver)
         }
@@ -741,10 +744,13 @@ final class AppSession: ObservableObject {
 
     func showToast(_ text: String, style: ToastStyle = .success) {
         let nextToast = ToastMessage(text: text, style: style)
-        toast = nextToast
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+            toast = nextToast
+        }
         Task {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            if self.toast?.id == nextToast.id {
+            try? await Task.sleep(nanoseconds: 3_200_000_000)
+            guard self.toast?.id == nextToast.id else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
                 self.toast = nil
             }
         }
@@ -1078,16 +1084,46 @@ final class AppSession: ObservableObject {
                           NSPersistentCloudKitContainer.eventNotificationUserInfoKey
                       ] as? NSPersistentCloudKitContainer.Event else { return }
                 if event.endDate == nil {
-                    self.syncState = .syncing
+                    self.markSyncingDebounced()
                 } else if let error = event.error {
-                    self.syncState = self.isNetworkError(error) ? .offline : .failed
-                    self.lastSyncError = self.userFacingMessage(for: error)
+                    self.syncingDebounceTask?.cancel()
+                    self.syncingDebounceTask = nil
+                    let message = self.userFacingMessage(for: error)
+                    let nextState: OneCartSyncState =
+                        self.isNetworkError(error) ? .offline : .failed
+                    self.applySyncFailure(state: nextState, message: message)
                 } else {
+                    self.syncingDebounceTask?.cancel()
+                    self.syncingDebounceTask = nil
                     self.syncState = self.online ? .synchronized : .offline
                     self.lastSyncError = nil
+                    self.lastToastedSyncError = nil
                 }
             }
         }
+    }
+
+    /// Brief CloudKit export/import pulses stay silent; only lasting sync shows `.syncing`.
+    private func markSyncingDebounced() {
+        syncingDebounceTask?.cancel()
+        syncingDebounceTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard !Task.isCancelled, let self else { return }
+            if self.online, self.syncState != .failed, self.syncState != .offline {
+                self.syncState = .syncing
+            }
+        }
+    }
+
+    private func applySyncFailure(state: OneCartSyncState, message: String) {
+        syncState = state
+        lastSyncError = message
+        // Surface the readable error once as a bottom toast — not a top banner that
+        // resizes the screen on every CloudKit retry.
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, lastToastedSyncError != trimmed else { return }
+        lastToastedSyncError = trimmed
+        showToast(trimmed, style: state == .offline ? .info : .error)
     }
 
     private func scheduleCloudReload(delayNanoseconds: UInt64 = 650_000_000) {
@@ -1102,7 +1138,10 @@ final class AppSession: ObservableObject {
                     await refreshFamilyMetadata(showErrors: false)
                 }
             } catch {
-                lastSyncError = userFacingMessage(for: error)
+                applySyncFailure(
+                    state: .failed,
+                    message: userFacingMessage(for: error)
+                )
             }
         }
     }
@@ -1114,9 +1153,13 @@ final class AppSession: ObservableObject {
                 let wasOnline = self.online
                 self.online = isOnline
                 if !isOnline {
-                    self.syncState = .offline
+                    self.applySyncFailure(
+                        state: .offline,
+                        message: OneCartSyncState.offline.title
+                    )
                 } else if !wasOnline, self.account != nil {
-                    self.syncState = .syncing
+                    self.lastToastedSyncError = nil
+                    self.markSyncingDebounced()
                     self.scheduleCloudReload(delayNanoseconds: 150_000_000)
                 }
             }

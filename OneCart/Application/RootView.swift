@@ -62,9 +62,14 @@ struct RootView: View {
                     .padding(.bottom, 22)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(5)
+                    // Keep animation local — animating the whole ZStack made the
+                    // main UI blink whenever a toast appeared or dismissed.
+                    .animation(
+                        .spring(response: 0.35, dampingFraction: 0.86),
+                        value: model.toast?.id
+                    )
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.86), value: model.toast)
         .sheet(isPresented: $model.familyManagementPresented) {
             FamilyManagementSheet(model: model)
         }
@@ -169,67 +174,69 @@ struct MainTabView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            SyncStatusBanner()
-            TabView {
-                HomeView(model: model)
-                    .tabItem { Label("tab.home", systemImage: "cart.fill") }
-                StoresView()
-                    .tabItem { Label("tab.stores", systemImage: "storefront.fill") }
-                HistoryView()
-                    .tabItem { Label("tab.history", systemImage: "clock.arrow.circlepath") }
-                SettingsView()
-                    .tabItem { Label("tab.settings", systemImage: "gearshape.fill") }
-            }
-            .tint(OneCartPalette.primary)
+        TabView {
+            HomeView(model: model)
+                .tabItem { Label("tab.home", systemImage: "cart.fill") }
+            StoresView()
+                .tabItem { Label("tab.stores", systemImage: "storefront.fill") }
+            HistoryView()
+                .tabItem { Label("tab.history", systemImage: "clock.arrow.circlepath") }
+            SettingsView()
+                .tabItem { Label("tab.settings", systemImage: "gearshape.fill") }
         }
+        .tint(OneCartPalette.primary)
         .background(OneCartPalette.background)
+        // Overlay keeps TabView layout stable — inserting a top banner used to
+        // push content down on every CloudKit sync pulse ("screen blink").
+        .overlay(alignment: .top) {
+            SyncStatusChip()
+        }
     }
 }
 
-private struct SyncStatusBanner: View {
+/// Compact offline/failed chip. Syncing is silent; full error text goes to toast.
+private struct SyncStatusChip: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        let state = model.syncState
-        if state != .synchronized {
-            HStack(spacing: 8) {
-                Image(systemName: state.systemImage)
-                Text(statusText(for: state))
-                    .font(.footnote.weight(.medium))
-                Spacer(minLength: 0)
+        Group {
+            switch model.syncState {
+            case .offline, .failed:
+                HStack(spacing: 8) {
+                    Image(systemName: model.syncState.systemImage)
+                    Text(chipTitle)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                .foregroundStyle(chipForeground)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(chipForeground.opacity(0.25), lineWidth: 1)
+                )
+                .padding(.top, 6)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(chipTitle)
+                .transition(.opacity)
+            case .synchronized, .syncing:
+                EmptyView()
             }
-            .foregroundStyle(foreground(for: state))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(background(for: state))
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(statusText(for: state))
         }
+        .animation(.easeInOut(duration: 0.2), value: model.syncState)
     }
 
-    private func statusText(for state: OneCartSyncState) -> String {
-        if state == .failed {
-            let detail = model.lastSyncError?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if !detail.isEmpty { return detail }
-        }
-        return state.title
+    private var chipTitle: String {
+        model.syncState.title
     }
 
-    private func foreground(for state: OneCartSyncState) -> Color {
-        switch state {
+    private var chipForeground: Color {
+        switch model.syncState {
         case .failed: OneCartPalette.danger
         case .offline: Color.orange
         default: OneCartPalette.primaryStrong
-        }
-    }
-
-    private func background(for state: OneCartSyncState) -> Color {
-        switch state {
-        case .failed: OneCartPalette.danger.opacity(0.12)
-        case .offline: Color.orange.opacity(0.12)
-        default: OneCartPalette.primarySoft
         }
     }
 }
