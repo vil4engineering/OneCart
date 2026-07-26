@@ -83,26 +83,6 @@ final class DevicePreferences: ObservableObject {
     }
 }
 
-enum ToastStyle: Equatable {
-    case success
-    case info
-    case error
-
-    var systemImage: String {
-        switch self {
-        case .success: "checkmark.circle.fill"
-        case .info: "info.circle.fill"
-        case .error: "exclamationmark.triangle.fill"
-        }
-    }
-}
-
-struct ToastMessage: Identifiable, Equatable {
-    let id = UUID()
-    let text: String
-    let style: ToastStyle
-}
-
 struct HomeOverview: Equatable {
     var purchasedCount = 0
     var totalCount = 0
@@ -168,7 +148,7 @@ final class AppSession: ObservableObject {
     @Published private(set) var access: FamilyAccess?
     @Published private(set) var isFamilyMetadataLoading = false
     @Published var familyManagementPresented = false
-    @Published var toast: ToastMessage?
+    @Published var alertMessage: String?
     @Published private(set) var profileAvatar: UIImage?
     @Published private(set) var profileBanner: UIImage?
 
@@ -195,8 +175,6 @@ final class AppSession: ObservableObject {
     private var remoteChangeObserver: NSObjectProtocol?
     private var cloudEventObserver: NSObjectProtocol?
     private var scheduledReloadTask: Task<Void, Never>?
-    private var syncingDebounceTask: Task<Void, Never>?
-    private var lastToastedSyncError: String?
 
     init(
         persistence: PersistenceController? = nil,
@@ -238,7 +216,6 @@ final class AppSession: ObservableObject {
 
     deinit {
         scheduledReloadTask?.cancel()
-        syncingDebounceTask?.cancel()
         if let remoteChangeObserver {
             NotificationCenter.default.removeObserver(remoteChangeObserver)
         }
@@ -269,7 +246,6 @@ final class AppSession: ObservableObject {
                 try await adoptSharedFamilyCartIfNeeded(for: account)
             }
             if activeFamilySpace != nil {
-                showToast("Семейная корзина подключена")
             }
         } catch {
             show(error)
@@ -409,7 +385,6 @@ final class AppSession: ObservableObject {
             )
             defaults.set(id.uuidString, forKey: activeFamilyKey(accountID: account.id))
             try reload(preferredFamilySpaceID: id)
-            showToast("Корзина создана")
         } catch {
             show(error)
         }
@@ -417,7 +392,7 @@ final class AppSession: ObservableObject {
 
     func renameFamilySpace(name: String) async {
         guard access?.isOwner == true, let id = activeFamilySpace?.id else {
-            showToast("Название может менять только владелец группы.", style: .info)
+            presentAlert("Название может менять только владелец группы.")
             return
         }
         await performMutation(successMessage: "Название обновлено") {
@@ -514,7 +489,7 @@ final class AppSession: ObservableObject {
     func togglePurchased(_ product: ProductEntity) async {
         guard let id = product.id else { return }
         guard canEdit else {
-            showToast(RepositoryError.permissionDenied.localizedDescription, style: .info)
+            presentAlert(RepositoryError.permissionDenied.localizedDescription)
             return
         }
 
@@ -600,13 +575,11 @@ final class AppSession: ObservableObject {
                 try await adoptSharedFamilyCartIfNeeded(for: account)
             }
             scheduleCloudReload(delayNanoseconds: 350_000_000)
-            showToast("Семейная корзина подключена")
         } catch {
             AppDelegate.requeue(metadata)
-            applySyncFailure(
-                state: .failed,
-                message: userFacingMessage(for: error)
-            )
+            syncState = .failed
+            lastSyncError = userFacingMessage(for: error)
+            show(error)
         }
     }
 
@@ -615,7 +588,7 @@ final class AppSession: ObservableObject {
               access?.isOwner == true,
               !member.isCurrentUser else { return }
         guard online else {
-            showToast("Для изменения состава группы подключитесь к интернету.", style: .info)
+            presentAlert("Для изменения состава группы подключитесь к интернету.")
             return
         }
 
@@ -624,7 +597,6 @@ final class AppSession: ObservableObject {
         do {
             try await backend.removeMember(member, from: family)
             await refreshFamilyMetadata(showErrors: false)
-            showToast("Участник удалён")
         } catch {
             show(error)
         }
@@ -635,7 +607,7 @@ final class AppSession: ObservableObject {
               let family = activeFamilySpace,
               access?.isParticipant == true else { return }
         guard online else {
-            showToast("Чтобы покинуть группу, подключитесь к интернету.", style: .info)
+            presentAlert("Чтобы покинуть группу, подключитесь к интернету.")
             return
         }
 
@@ -644,7 +616,6 @@ final class AppSession: ObservableObject {
         do {
             try await backend.leaveFamily(family)
             scheduleCloudReload(delayNanoseconds: 350_000_000)
-            showToast("Вы покинули группу")
         } catch {
             show(error)
         }
@@ -672,7 +643,7 @@ final class AppSession: ObservableObject {
         guard let account else { return false }
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            showToast("Укажите имя", style: .error)
+            presentAlert("Укажите имя")
             return false
         }
 
@@ -708,7 +679,6 @@ final class AppSession: ObservableObject {
             if familyManagementPresented {
                 await refreshFamilyMetadata(showErrors: false)
             }
-            showToast("Профиль обновлён")
             return true
         } catch {
             // Local photos already saved — keep them and still close the editor.
@@ -743,18 +713,14 @@ final class AppSession: ObservableObject {
         }
     }
 
-    func showToast(_ text: String, style: ToastStyle = .success) {
-        let nextToast = ToastMessage(text: text, style: style)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
-            toast = nextToast
-        }
-        Task {
-            try? await Task.sleep(nanoseconds: 3_200_000_000)
-            guard self.toast?.id == nextToast.id else { return }
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
-                self.toast = nil
-            }
-        }
+    func presentAlert(_ message: String) {
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        alertMessage = trimmed
+    }
+
+    func dismissAlert() {
+        alertMessage = nil
     }
 
     private func prepareApplication(appleCredential: AppleSignInCredential) async {
@@ -870,22 +836,18 @@ final class AppSession: ObservableObject {
         successMessage: String?,
         operation: @escaping () async throws -> Void
     ) async {
+        _ = successMessage
         guard canEdit else {
-            showToast(RepositoryError.permissionDenied.localizedDescription, style: .info)
+            presentAlert(RepositoryError.permissionDenied.localizedDescription)
             return
         }
 
         do {
             try await operation()
-            // Yield to the viewContext queue so automaticallyMergesChangesFromParent
-            // applies the background save before we refetch for the UI / sync banner.
             await persistence.container.viewContext.perform {
                 self.persistence.container.viewContext.processPendingChanges()
             }
             try reload()
-            if let successMessage {
-                showToast(successMessage)
-            }
         } catch {
             show(error)
         }
@@ -1085,46 +1047,16 @@ final class AppSession: ObservableObject {
                           NSPersistentCloudKitContainer.eventNotificationUserInfoKey
                       ] as? NSPersistentCloudKitContainer.Event else { return }
                 if event.endDate == nil {
-                    self.markSyncingDebounced()
+                    self.syncState = .syncing
                 } else if let error = event.error {
-                    self.syncingDebounceTask?.cancel()
-                    self.syncingDebounceTask = nil
-                    let message = self.userFacingMessage(for: error)
-                    let nextState: OneCartSyncState =
-                        self.isNetworkError(error) ? .offline : .failed
-                    self.applySyncFailure(state: nextState, message: message)
+                    self.syncState = self.isNetworkError(error) ? .offline : .failed
+                    self.lastSyncError = self.userFacingMessage(for: error)
                 } else {
-                    self.syncingDebounceTask?.cancel()
-                    self.syncingDebounceTask = nil
                     self.syncState = self.online ? .synchronized : .offline
                     self.lastSyncError = nil
-                    self.lastToastedSyncError = nil
                 }
             }
         }
-    }
-
-    /// Brief CloudKit export/import pulses stay silent; only lasting sync shows `.syncing`.
-    private func markSyncingDebounced() {
-        syncingDebounceTask?.cancel()
-        syncingDebounceTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 700_000_000)
-            guard !Task.isCancelled, let self else { return }
-            if self.online, self.syncState != .failed, self.syncState != .offline {
-                self.syncState = .syncing
-            }
-        }
-    }
-
-    private func applySyncFailure(state: OneCartSyncState, message: String) {
-        syncState = state
-        lastSyncError = message
-        // Surface the readable error once as a bottom toast — not a top banner that
-        // resizes the screen on every CloudKit retry.
-        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, lastToastedSyncError != trimmed else { return }
-        lastToastedSyncError = trimmed
-        showToast(trimmed, style: state == .offline ? .info : .error)
     }
 
     private func scheduleCloudReload(delayNanoseconds: UInt64 = 650_000_000) {
@@ -1139,10 +1071,8 @@ final class AppSession: ObservableObject {
                     await refreshFamilyMetadata(showErrors: false)
                 }
             } catch {
-                applySyncFailure(
-                    state: .failed,
-                    message: userFacingMessage(for: error)
-                )
+                self.syncState = .failed
+                self.lastSyncError = userFacingMessage(for: error)
             }
         }
     }
@@ -1154,13 +1084,9 @@ final class AppSession: ObservableObject {
                 let wasOnline = self.online
                 self.online = isOnline
                 if !isOnline {
-                    self.applySyncFailure(
-                        state: .offline,
-                        message: OneCartSyncState.offline.title
-                    )
+                    self.syncState = .offline
                 } else if !wasOnline, self.account != nil {
-                    self.lastToastedSyncError = nil
-                    self.markSyncingDebounced()
+                    self.syncState = .syncing
                     self.scheduleCloudReload(delayNanoseconds: 150_000_000)
                 }
             }
@@ -1173,7 +1099,7 @@ final class AppSession: ObservableObject {
     }
 
     private func show(_ error: Error) {
-        showToast(userFacingMessage(for: error), style: .error)
+        presentAlert(userFacingMessage(for: error))
     }
 
     private func userFacingMessage(for error: Error) -> String {

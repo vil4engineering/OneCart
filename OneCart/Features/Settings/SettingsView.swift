@@ -192,7 +192,7 @@ struct FamilyManagementSheet: View {
     @State private var sharePayload: FamilySharePayload?
     @State private var preparingInviteAction: InviteLinkAction?
     @State private var didCopyLink = false
-    @State private var sheetToast: ToastMessage?
+    @State private var alertMessage: String?
 
     init(model: AppModel) {
         _viewModel = StateObject(wrappedValue: SettingsViewModel(session: model))
@@ -200,63 +200,62 @@ struct FamilyManagementSheet: View {
 
     var body: some View {
         NavigationView {
-            ZStack(alignment: .bottom) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        familyHeader
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    familyHeader
 
-                        if model.access?.isOwner == true {
-                            inviteCard
-                        }
+                    if model.access?.isOwner == true {
+                        inviteCard
+                    }
 
-                        memberSection
+                    memberSection
 
-                        if model.access?.isOwner == true {
-                            familySettingsCard
-                        }
+                    if model.access?.isOwner == true {
+                        familySettingsCard
+                    }
 
-                        if model.access?.isParticipant == true {
-                            Button(role: .destructive) {
-                                confirmingLeave = true
-                            } label: {
-                                Label(
-                                    "Покинуть эту группу",
-                                    systemImage: "rectangle.portrait.and.arrow.right"
-                                )
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .foregroundColor(OneCartPalette.danger)
-                                .background(
-                                    OneCartPalette.danger.opacity(0.11),
-                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                )
-                            }
+                    if model.access?.isParticipant == true {
+                        Button(role: .destructive) {
+                            confirmingLeave = true
+                        } label: {
+                            Label(
+                                "Покинуть эту группу",
+                                systemImage: "rectangle.portrait.and.arrow.right"
+                            )
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .foregroundColor(OneCartPalette.danger)
+                            .background(
+                                OneCartPalette.danger.opacity(0.11),
+                                in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            )
                         }
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 20)
                 }
-                .background(OneCartPalette.background.ignoresSafeArea())
-
-                if let sheetToast {
-                    ToastBanner(message: sheetToast)
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 18)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .zIndex(2)
-                        .animation(
-                            .spring(response: 0.35, dampingFraction: 0.86),
-                            value: sheetToast.id
-                        )
-                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 20)
             }
+            .background(OneCartPalette.background.ignoresSafeArea())
             .navigationTitle("Группа")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Готово") { dismiss() }
                 }
+            }
+            .alert(
+                "OneCart",
+                isPresented: Binding(
+                    get: { alertMessage != nil },
+                    set: { if !$0 { alertMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {
+                    alertMessage = nil
+                }
+            } message: {
+                Text(alertMessage ?? "")
             }
             .onAppear { updateFamilyName() }
             .onChange(of: model.activeFamilySpace?.id) { _ in
@@ -516,11 +515,8 @@ struct FamilyManagementSheet: View {
                 }
             } catch {
                 preparingInviteAction = nil
-                let message = (error as? LocalizedError)?.errorDescription
+                alertMessage = (error as? LocalizedError)?.errorDescription
                     ?? error.localizedDescription
-                let style: ToastStyle =
-                    (error is InviteLinkError) ? .info : .error
-                showSheetToast(message, style: style)
                 return
             }
 
@@ -545,17 +541,6 @@ struct FamilyManagementSheet: View {
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                     didCopyLink = false
                 }
-            }
-        }
-    }
-
-    private func showSheetToast(_ text: String, style: ToastStyle = .success) {
-        let next = ToastMessage(text: text, style: style)
-        sheetToast = next
-        Task {
-            try? await Task.sleep(nanoseconds: 2_400_000_000)
-            if sheetToast?.id == next.id {
-                sheetToast = nil
             }
         }
     }

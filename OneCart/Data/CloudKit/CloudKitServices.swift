@@ -176,7 +176,7 @@ enum OneCartCloudKitError: LocalizedError {
     }
 }
 
-/// Maps CloudKit / Core Data sync failures to short Russian copy for banners and toasts.
+/// Maps CloudKit / Core Data sync failures to short Russian copy for alerts.
 enum CloudKitUserFacingError {
     static let genericSyncFailure =
         "Не удалось синхронизировать с iCloud. Проверьте сеть и место в iCloud, затем повторите."

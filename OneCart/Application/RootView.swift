@@ -55,20 +55,19 @@ struct RootView: View {
                 .transition(.opacity)
                 .zIndex(4)
             }
-
-            if let toast = model.toast {
-                ToastBanner(message: toast)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 22)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(5)
-                    // Keep animation local — animating the whole ZStack made the
-                    // main UI blink whenever a toast appeared or dismissed.
-                    .animation(
-                        .spring(response: 0.35, dampingFraction: 0.86),
-                        value: model.toast?.id
-                    )
+        }
+        .alert(
+            "OneCart",
+            isPresented: Binding(
+                get: { model.alertMessage != nil },
+                set: { if !$0 { model.dismissAlert() } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                model.dismissAlert()
             }
+        } message: {
+            Text(model.alertMessage ?? "")
         }
         .sheet(isPresented: $model.familyManagementPresented) {
             FamilyManagementSheet(model: model)
@@ -186,58 +185,6 @@ struct MainTabView: View {
         }
         .tint(OneCartPalette.primary)
         .background(OneCartPalette.background)
-        // Overlay keeps TabView layout stable — inserting a top banner used to
-        // push content down on every CloudKit sync pulse ("screen blink").
-        .overlay(alignment: .top) {
-            SyncStatusChip()
-        }
-    }
-}
-
-/// Compact offline/failed chip. Syncing is silent; full error text goes to toast.
-private struct SyncStatusChip: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        Group {
-            switch model.syncState {
-            case .offline, .failed:
-                HStack(spacing: 8) {
-                    Image(systemName: model.syncState.systemImage)
-                    Text(chipTitle)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                .foregroundStyle(chipForeground)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: Capsule(style: .continuous))
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(chipForeground.opacity(0.25), lineWidth: 1)
-                )
-                .padding(.top, 6)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(chipTitle)
-                .transition(.opacity)
-            case .synchronized, .syncing:
-                EmptyView()
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: model.syncState)
-    }
-
-    private var chipTitle: String {
-        model.syncState.title
-    }
-
-    private var chipForeground: Color {
-        switch model.syncState {
-        case .failed: OneCartPalette.danger
-        case .offline: Color.orange
-        default: OneCartPalette.primaryStrong
-        }
     }
 }
 
@@ -260,37 +207,6 @@ struct OneCartMark: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("OneCart")
-    }
-}
-
-struct ToastBanner: View {
-    let message: ToastMessage
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: message.style.systemImage)
-                .foregroundColor(accentColor)
-            Text(message.text)
-                .font(.subheadline.weight(.semibold))
-                .fixedSize(horizontal: false, vertical: true)
-                .multilineTextAlignment(.leading)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: 420, alignment: .leading)
-        .background(
-            .regularMaterial,
-            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-        )
-        .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-    }
-
-    private var accentColor: Color {
-        switch message.style {
-        case .success: OneCartPalette.primary
-        case .info: .blue
-        case .error: OneCartPalette.danger
-        }
     }
 }
 
