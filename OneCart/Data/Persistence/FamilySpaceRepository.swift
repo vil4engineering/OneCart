@@ -494,6 +494,8 @@ final class FamilySpaceRepository {
         }
     }
 
+    /// Adds a new cart line item. Same name / catalog URL as an existing row still
+    /// creates a separate unique position — quantities are never summed across members.
     @discardableResult
     func addProduct(
         to listID: UUID,
@@ -513,6 +515,7 @@ final class FamilySpaceRepository {
                 throw RepositoryError.familySpaceNotFound
             }
 
+            // Idempotent only for the exact stable id (CloudKit redelivery), never by name.
             if let existing = try Self.fetchProduct(
                 id: id,
                 familySpaceID: space.id,

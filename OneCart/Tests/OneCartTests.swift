@@ -279,6 +279,44 @@ final class OneCartTests: XCTestCase {
         XCTAssertTrue(try XCTUnwrap(repository.fetchFamilySpace(id: familyID)).sortedProducts.isEmpty)
     }
 
+    func testSameNamedProductsStayAsSeparateCartLines() async throws {
+        let (_, repository) = try await makeInMemoryRepository()
+        let familyID = try await repository.createFamilySpace(name: "Семья")
+        let listID = try XCTUnwrap(
+            repository.fetchFamilySpace(id: familyID)?.activeLists.first?.id
+        )
+        let draft = ProductDraft(
+            name: "Молоко",
+            quantity: 1,
+            unit: .piece,
+            category: .dairy,
+            estimatedPrice: 40,
+            note: "",
+            sourceURL: "https://shop.example.com/milk"
+        )
+
+        let firstID = try await repository.addProduct(
+            to: listID,
+            draft: draft,
+            purchasedByName: "Анна"
+        )
+        let secondID = try await repository.addProduct(
+            to: listID,
+            draft: draft,
+            purchasedByName: "Игорь"
+        )
+
+        XCTAssertNotEqual(firstID, secondID)
+        let space = try XCTUnwrap(repository.fetchFamilySpace(id: familyID))
+        let milk = space.sortedProducts.filter { $0.displayName == "Молоко" }
+        XCTAssertEqual(milk.count, 2, "Identical names must not be summed into one line")
+        XCTAssertEqual(
+            milk.map(\.quantityValue).reduce(0, +),
+            2,
+            "Each line keeps its own quantity"
+        )
+    }
+
     func testAddProductLandsInSameStoreAsFamilyForCloudKitSync() async throws {
         let (persistence, repository) = try await makeInMemoryRepository()
         let familyID = try await repository.createFamilySpace(

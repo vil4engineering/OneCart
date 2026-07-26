@@ -31,6 +31,8 @@ Legacy `onecart://invite/...` tokens and the old invite endpoint are gone.
 
 Up to four people share one list; changes sync via CloudKit.
 
+**Cart line items are unique.** If several members add the same product (same name or catalog URL), the cart shows a separate row for each add — quantities are never merged/summed into one position.
+
 ## Account and profile
 
 - **Session:** Sign in with Apple credentials in Keychain (local session / display name only).
