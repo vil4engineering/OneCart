@@ -65,7 +65,11 @@ Covered by unit tests / static path review when Xcode devices are unavailable:
 | Offline local persist | `testOfflineRepositorySaveSurvivesContextReset` |
 | Private carts scoped per SIWA account | `testFamilyCacheIsScopedToAuthenticatedUser`, `testSharedCartVisibleAlongsideOwnPrivateCart` |
 | Same product from several members = separate lines | `testSameNamedProductsStayAsSeparateCartLines` |
-| Shared replaces private (merge/archive) | `testMergeFamilyContentCopiesProducts`, `FamilyCartMerge` + `adoptSharedFamilyCartIfNeeded` |
+| Shared replaces private (merge/archive) | `testMergeFamilyContentCopiesProducts`, `testMergeFamilyContentRemapsStoresOntoDestination`, `testArchiveFamilySpaceHidesCartAndSoftDeletesChildren`, `FamilyCartMerge` |
+| Claim unassigned private carts / skip shared | `testClaimUnassignedFamilySpacesStampsPrivateOnly` |
+| Complete list → history + replacement list | `testCompleteListArchivesProductsCreatesHistoryAndReplacementList` |
+| Toggle / move / update / catalog price refresh | `BusinessLogicTests` cart lifecycle cases |
+| Deduplicate stable IDs / Core Data vs CK errors | `testDeduplicateStableIDsKeepsNewerProduct`, `testIsUserFacingCoreDataFailureIgnoresCloudKit` |
 | Invite waits for CloudKit mirror / timeout | `CloudKitServices` `waitUntilMirrored` / `shareTimedOut` |
 
 ## 4. TestFlight
