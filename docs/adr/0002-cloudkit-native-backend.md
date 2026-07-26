@@ -9,7 +9,7 @@ OneCart используется как личное iOS-приложение и
 ## Решение
 
 - Использовать `NSPersistentCloudKitContainer` с private и shared stores.
-- Использовать iCloud-аккаунт устройства вместо email/password и Sign in with Apple.
+- Локальная сессия — Sign in with Apple (Keychain). Синхронизация и шаринг — iCloud-аккаунт устройства (`CKContainer`); без email/password backend.
 - Публиковать корневой `FamilySpace` через `CKShare`; связанные объекты остаются в том же persistent store.
 - Оставить имя, аватар и баннер локальными настройками устройства.
 - Удалить Supabase SDK, RPC/Realtime sync, Auth UI, Edge Functions и серверную проверку каталога.

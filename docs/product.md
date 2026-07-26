@@ -41,6 +41,8 @@ Up to four people share one list; changes sync via CloudKit.
 - Display name, avatar, banner: **device-local** — not in CloudKit, not in migration.
 - Private carts on disk are scoped by SIWA-derived `cachedForUserID`; shared-store carts stay visible to the iCloud participant.
 - Welcome **Retry** soft-retries by default; local SQLite wipe only when Core Data itself failed.
+- Sign out clears the SIWA Keychain session and returns to Welcome; it does **not** sign out of device iCloud.
+- Post-welcome failures use a system alert (`OK`), not toast/banner chrome.
 
 ## Default cart identity
 
