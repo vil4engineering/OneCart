@@ -42,6 +42,7 @@ Covered by unit tests / static path review when Xcode devices are unavailable:
 | Add product visible after viewContext merge | `testAddProductVisibleAfterViewContextMerge` |
 | Offline local persist | `testOfflineRepositorySaveSurvivesContextReset` |
 | Private carts scoped per SIWA account | `testFamilyCacheIsScopedToAuthenticatedUser`, `testSharedCartVisibleAlongsideOwnPrivateCart` |
+| Same product from several members = separate lines | `testSameNamedProductsStayAsSeparateCartLines` |
 | Shared replaces private (merge/archive) | `testMergeFamilyContentCopiesProducts`, `FamilyCartMerge` + `adoptSharedFamilyCartIfNeeded` |
 | Invite waits for CloudKit mirror / timeout | `CloudKitServices` `waitUntilMirrored` / `shareTimedOut` |
 
