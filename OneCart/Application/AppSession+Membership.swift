@@ -69,6 +69,7 @@ extension AppSession {
             if let account {
                 try await offerSharedCartJoinIfNeeded(for: account)
                 await refreshFamilyMetadata(showErrors: false)
+                scheduleInviteLinkPreparation(delayNanoseconds: 1_500_000_000)
             }
         } catch {
             syncState = .failed

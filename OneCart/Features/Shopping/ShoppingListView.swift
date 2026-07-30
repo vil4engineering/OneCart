@@ -54,10 +54,7 @@ struct ShoppingListView: View {
     }
 
     private var emptyCartMessage: String {
-        if model.access?.isOwner == true {
-            return "\(String(localized: "home.empty_hint")) \(String(localized: "home.empty_hint_share"))"
-        }
-        return String(localized: "home.empty_hint")
+        "\(String(localized: "home.empty_hint")) \(String(localized: "home.empty_hint_share"))"
     }
 
     private var isInlineBusy: Bool {
