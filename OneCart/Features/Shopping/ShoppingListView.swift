@@ -270,7 +270,8 @@ struct ShoppingListView: View {
             if !trimmedDraft.isEmpty {
                 await commitDraftProduct(startAnother: true)
             } else {
-                focusedField = .compose
+                // Empty name + Done / FAB: dismiss composer, do not save a blank row.
+                cancelNewItemComposer()
             }
             return
         }
