@@ -61,11 +61,14 @@ extension AppSession {
 
         // Share accept already succeeded — do not requeue metadata if local adopt/reload
         // races (shared lists still importing, temporary merge permission deny).
+        // Always consolidate into the accepted/newest shared cart (merge private +
+        // archive stale guest shares from previous cart versions).
         syncState = .synchronized
         do {
             try reload()
             if let account {
                 try await offerSharedCartJoinIfNeeded(for: account)
+                await refreshFamilyMetadata(showErrors: false)
             }
         } catch {
             syncState = .failed
