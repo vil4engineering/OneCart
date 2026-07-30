@@ -295,10 +295,17 @@ struct ShoppingListView: View {
     }
 
     @MainActor
+    private func cancelNewItemComposer() {
+        isComposingNewItem = false
+        draftName = ""
+        focusedField = nil
+    }
+
+    @MainActor
     private func commitDraftProduct(startAnother: Bool) async {
         guard model.canEdit, !isAddingDraft else { return }
         guard !trimmedDraft.isEmpty else {
-            focusedField = .compose
+            cancelNewItemComposer()
             return
         }
         guard let list = model.lists.first(where: { $0.id == listID }) else { return }
@@ -329,8 +336,7 @@ struct ShoppingListView: View {
             await Task.yield()
             focusedField = .compose
         } else {
-            isComposingNewItem = false
-            focusedField = nil
+            cancelNewItemComposer()
         }
     }
 
@@ -345,7 +351,10 @@ struct ShoppingListView: View {
             return
         }
         guard !trimmedEditName.isEmpty else {
-            focusedField = .edit
+            // Empty rename + Done: discard edit, hide keyboard, keep original item.
+            editingProductID = nil
+            editName = ""
+            focusedField = nil
             return
         }
 
