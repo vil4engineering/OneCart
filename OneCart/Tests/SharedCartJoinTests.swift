@@ -62,6 +62,32 @@ final class SharedCartJoinTests: XCTestCase {
         XCTAssertEqual(Set(session.products.map(\.displayName)), ["Test 1"])
     }
 
+    func testAdoptSelectsSharedEvenWhenPrivateMergeFails() async throws {
+        let (session, _, privateID, sharedID) = try await makeJoinFixture(
+            privateName: "Моя",
+            sharedName: "Семейная",
+            privateProduct: "Мой хлеб",
+            sharedProduct: nil,
+            includeSharedList: false
+        )
+
+        try await session.offerSharedCartJoinIfNeededForTesting()
+
+        XCTAssertEqual(
+            session.activeFamilySpace?.id,
+            sharedID,
+            "Invitee must join shared cart even if private→shared merge cannot run yet"
+        )
+        XCTAssertEqual(
+            persistenceScope(for: session.activeFamilySpace, in: session.persistence),
+            .shared
+        )
+        // Private content stays until a later successful merge retry.
+        XCTAssertNotNil(try session.persistence.container.viewContext.fetch(
+            familySpaceRequest(id: privateID)
+        ).first)
+    }
+
     func testRefreshFromServerPicksUpToggledPurchasedState() async throws {
         let persistence = PersistenceController(inMemory: true, cloudKitEnabled: false)
         try await persistence.load()
@@ -110,7 +136,8 @@ final class SharedCartJoinTests: XCTestCase {
         privateName: String,
         sharedName: String,
         privateProduct: String? = nil,
-        sharedProduct: String? = nil
+        sharedProduct: String? = nil,
+        includeSharedList: Bool = true
     ) async throws -> (AppSession, OneCartAccount, UUID, UUID) {
         let persistence = PersistenceController(inMemory: true, cloudKitEnabled: false)
         try await persistence.load()
@@ -139,7 +166,8 @@ final class SharedCartJoinTests: XCTestCase {
         let sharedID = try await seedSharedCart(
             persistence: persistence,
             name: sharedName,
-            productName: sharedProduct
+            productName: sharedProduct,
+            includeList: includeSharedList
         )
         defaults.set(privateID.uuidString, forKey: activeFamilyKey(accountID: account.id))
 
@@ -156,7 +184,8 @@ final class SharedCartJoinTests: XCTestCase {
     private func seedSharedCart(
         persistence: PersistenceController,
         name: String,
-        productName: String?
+        productName: String?,
+        includeList: Bool = true
     ) async throws -> UUID {
         let sharedID = UUID()
         let listID = UUID()
@@ -168,6 +197,8 @@ final class SharedCartJoinTests: XCTestCase {
             space.createdAt = Date()
             space.updatedAt = Date()
             space.isHouseholdDefault = NSNumber(value: true)
+
+            guard includeList else { return }
 
             let list = ShoppingListEntity(context: context)
             try persistence.assign(list, toSameStoreAs: space, in: context)
@@ -210,6 +241,14 @@ final class SharedCartJoinTests: XCTestCase {
         ])
         request.fetchLimit = 1
         return request
+    }
+
+    private func persistenceScope(
+        for space: FamilySpace?,
+        in persistence: PersistenceController
+    ) -> PersistentStoreScope? {
+        guard let space else { return nil }
+        return persistence.scope(for: space)
     }
 }
 
